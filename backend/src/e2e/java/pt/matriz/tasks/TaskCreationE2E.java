@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
 class TaskCreationE2E {
+    private static final String SECURITY_ADMIN_EMAIL = "security-admin-e2e@example.org";
     @Container
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:17.11-bookworm")
         .withDatabaseName("matriz_e2e_test").withUsername("matriz_e2e")
@@ -48,11 +49,52 @@ class TaskCreationE2E {
         properties.add("matriz.demo-seed.enabled", () -> false);
         properties.add("server.address", () -> "127.0.0.1");
         properties.add("server.servlet.session.cookie.secure", () -> false);
+        properties.add("MATRIZ_SECURITY_ADMIN_EMAIL", () -> SECURITY_ADMIN_EMAIL);
     }
 
     @LocalServerPort int backendPort;
     @Autowired JdbcTemplate jdbc;
     @Autowired PasswordEncoder passwords;
+
+    @Test
+    void securityAdminCanUseSecurityCenter() throws Exception {
+        String password = "SecurityAdminE2EPassword123!";
+
+        jdbc.update(
+            "INSERT INTO app_users(name,email,password_hash) VALUES (?,?,?)",
+            "Security E2E Admin",
+            SECURITY_ADMIN_EMAIL,
+            passwords.encode(password)
+        );
+
+        withBrowser("security-admin", (page, baseUrl) -> {
+            page.navigate(baseUrl);
+
+            page.getByLabel(
+                "Username",
+                new Page.GetByLabelOptions().setExact(true)
+            ).fill(SECURITY_ADMIN_EMAIL);
+
+            page.getByLabel(
+                "Password",
+                new Page.GetByLabelOptions().setExact(true)
+            ).fill(password);
+
+            button(page, "Sign in").click();
+
+            assertThat(
+                page.getByRole(
+                    AriaRole.HEADING,
+                    new Page.GetByRoleOptions()
+                        .setName("Dashboard")
+                        .setExact(true)
+                )
+            ).isVisible();
+
+            verifySecurityCenter(page);
+        });
+    }
+
 
     @Test
     void loginOpenProjectCreateTaskAndRemainInItsTaskList() throws Exception {
@@ -102,7 +144,7 @@ class TaskCreationE2E {
                     card.getByRole(AriaRole.LINK, new Locator.GetByRoleOptions().setName("Open project: " + projectName).setExact(true)).click();
                     assertThat(projectHeading).isVisible();
                     assertThat(taskCard).hasCount(1);
-                    verifySecurityCenter(page);
+                    assertThat(button(page, "Security Center")).hasCount(0);
         });
     }
 
