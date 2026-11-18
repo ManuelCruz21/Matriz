@@ -539,7 +539,13 @@ test('authenticated shell stays unkeyed by route while content and private conte
   const followedLinks = [];
   let snapshot;
   const navigation = { getSnapshot: () => snapshot, navigate(path) { destinations.push(path); }, handleClick(event) { followedLinks.push(event); } };
-  const session = { version: 1, user: { name: 'First account' } };
+  const session = {
+  version: 1,
+  user: {
+    name: 'First account',
+    securityAdmin: true
+  }
+};
   const render = (route, currentSession = session) => {
     if (JSON.stringify(snapshot) !== JSON.stringify(route)) snapshot = route;
     hookIndex = 0; effectIndex = 0; pendingEffects = [];

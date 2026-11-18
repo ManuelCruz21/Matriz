@@ -134,5 +134,6 @@ ol li:last-child { border: 0; }
 #main-content:focus-visible,
 #login-heading:focus,
 #login-heading:focus-visible {
-  outline: none;
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
 }

@@ -129,7 +129,7 @@ test('React integration gates route reads behind authentication and loads task d
   const source=await readFile(new URL('./main.jsx',import.meta.url),'utf8');
   assert.match(source,/useSyncExternalStore\(navigation.subscribe,navigation.getSnapshot\)/);
   assert.match(source,/key=\{`\$\{session.version\}:/);
-  assert.match(source,/else if\(!session.user\)return;\s*if\(route.type==='home'\)await loadDashboard\(\)/);
+  assert.match(source,/else if\(!session.user\)return;\s*if\(!currentUser\)return;\s*if\(route.type==='home'\)await loadDashboard\(\)/);
   assert.match(source,/route.type==='projects'\)await loadProjects\(route.search\)/);
   assert.match(source,/projectLoader.open\(route.id,currentUser.id,route.status,route.priority\)/);
   assert.match(source,/onBootstrap\(user\)/);
