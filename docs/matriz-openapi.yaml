@@ -1,0 +1,1608 @@
+openapi: 3.1.0
+info:
+  title: Matriz API — MVP
+  version: 0.4.0
+  summary: Contratos REST para projetos, tarefas, comentários e histórico
+  description: 'P1 documental: contrato com decisões aprovadas, sujeito a fecho final P1; não descreve implementação nem
+    inicia P2. Fonte canónica: openapi.yaml; docs/matriz-openapi.yaml é cópia byte a byte. D1–D10 aprovadas reconciliam
+    a proposta com a Ficha 03; D3/D4 incluem as políticas agora aprovadas pelo utilizador. As decisões adicionais aprovadas estão em x-pontos-aprovados; o ponto 7 é condicionado à consistência
+    com D1–D10 e pontos 1–6. Rotas e DTOs documentados não representam falta de decisão; o fecho final P1
+    permanece pendente, sem autorizar implementação ou P2.
+    Todas as operações sobre recursos exigem autorização no servidor, incluindo pedidos diretos por identificador.
+    D3: acesso por participação direta no projeto; gestor e membro consultam e comentam. 401 sem autenticação; 404
+    para recurso inexistente ou inacessível, sem revelar existência a não participante; 403 para operação proibida
+    sobre recurso acessível. O criador autenticado é associado automaticamente como gestor na mesma transação da
+    criação; projeto inicialmente privado, sem outros membros. Textos de domínio são aparados (trim) antes da validação
+    dos comprimentos; rejeitar vazio ou apenas espaços quando fornecidos, incluindo descrições opcionais. Na criação, descrição omitida ou null significa ausência; no PATCH, omissão mantém e null remove.
+    Respostas incluem description com null quando ausente. Identidade do criador e autor dos comentários
+    provém da sessão, nunca do corpo. Os esquemas exprimem limites após trim; JSON Schema não executa normalização
+    nem autorização.'
+servers:
+- url: http://localhost:8080/api/v1
+  description: Ambiente local ilustrativo
+tags:
+- name: Autenticação
+- name: Utilizadores
+- name: Projetos
+- name: Painel
+- name: Tarefas
+- name: Comentários
+- name: Histórico
+- name: Operação
+security:
+- sessionCookie: []
+paths:
+  /api/health:
+    servers:
+    - url: /
+      description: Raiz do mesmo servidor; endpoint operacional fora de /api/v1
+    get:
+      tags:
+      - Operação
+      operationId: getHealth
+      summary: Verificar disponibilidade da aplicação e da base de dados
+      description: 'Endpoint público operacional. Devolve apenas UP ou DOWN, sem detalhes de ligação ou erros internos.'
+      security: []
+      responses:
+        '200':
+          description: Base de dados disponível
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    const: UP
+        '503':
+          description: Base de dados indisponível; não utiliza Problem Details
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    const: DOWN
+  /users/me:
+    get:
+      tags:
+      - Utilizadores
+      summary: Consultar o perfil autenticado
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Perfil do utilizador autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+      description: Perfil público inferido da sessão Spring Security; 401 quando ausente ou expirada. Papéis são
+        por projeto, não um papel global inferido deste perfil.
+  /projects:
+    get:
+      tags:
+      - Projetos
+      summary: Listar projetos acessíveis ao utilizador
+      operationId: listProjects
+      parameters:
+      - name: search
+        in: query
+        description: 'Substring literal no nome após trim da pesquisa; case-insensitive e accent-sensitive.
+          Omissão ou vazio após trim não filtra; % e _ são literais, nunca wildcards. Limite de 100 caracteres após trim.'
+        required: false
+        schema:
+          type: string
+          maxLength: 100
+        example: Matriz
+      responses:
+        '200':
+          description: Lista completa de projetos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+      description: 'D3: listar apenas projetos em que o utilizador tem participação direta como gestor ou membro;
+        nunca revelar projetos inacessíveis. Sem paginação no MVP; ordenação por id DESC.'
+    post:
+      tags:
+      - Projetos
+      operationId: createProject
+      summary: Criar projeto
+      description: 'D3 aprovada: criador inferido da sessão; criar projeto e associar automaticamente o criador
+        como gestor na mesma transação, sem criação parcial em caso de falha. Projeto inicialmente privado, sem
+        outros membros. Não aceitar identidade ou papel no corpo como prova de autorização.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProject'
+            example:
+              name: Matriz
+              description: Gestão de tarefas
+      responses:
+        '201':
+          description: Recurso criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+          headers:
+            Location:
+              description: URI do recurso criado
+              schema:
+                type: string
+              example: /api/v1/projects/12
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+      security:
+      - sessionCookie: []
+        csrfToken: []
+  /projects/{projectId}:
+    parameters:
+    - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags:
+      - Projetos
+      summary: Consultar um projeto
+      operationId: getProject
+      responses:
+        '200':
+          description: Projeto acessível
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+      description: 'D3: gestor e membro participantes diretos consultam o projeto. Não participante recebe 404,
+        tal como para recurso inexistente, sem revelar a sua existência.'
+    patch:
+      tags:
+      - Projetos
+      operationId: updateProject
+      summary: Editar projeto
+      description: 'D3: apenas gestor do projeto pode editar. Membro participante recebe 403; não participante recebe
+        404, sem revelar existência.'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+      responses:
+        '200':
+          description: Operação concluída
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      security:
+      - sessionCookie: []
+        csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProject'
+    delete:
+      tags:
+      - Projetos
+      operationId: deleteProject
+      summary: Eliminar definitivamente projeto
+      description: 'D7: eliminar projeto, participações diretas, tarefas, atribuições, comentários e histórico dependentes
+        numa única transação. Preservar utilizadores e outros projetos. Rollback integral em falha. D3: apenas gestor
+        do projeto; membro participante recebe 403; recurso inexistente ou inacessível devolve 404, sem revelar
+        existência.'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+      responses:
+        '204':
+          description: Operação concluída sem corpo
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      security:
+      - sessionCookie: []
+        csrfToken: []
+  /projects/{projectId}/tasks:
+    parameters:
+    - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags:
+      - Tarefas
+      summary: Listar tarefas de um projeto
+      operationId: listProjectTasks
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - TODO
+          - IN_PROGRESS
+          - DONE
+        description: Filtro opcional de estado; omissão inclui todos os estados.
+      - &id001
+        name: priority
+        in: query
+        required: false
+        description: Filtro opcional de prioridade; omissão inclui todas as prioridades, sem aplicar o default de
+          criação.
+        schema:
+          type: string
+          enum:
+          - LOW
+          - MEDIUM
+          - HIGH
+      responses:
+        '200':
+          description: Lista completa de tarefas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+      description: 'D9: status e priority combinam-se na listagem e totalItems. counts respeita priority e ignora
+        status. Conjunto completo, sem paginação no MVP; ordenação por createdAt DESC, id DESC. D3: gestor
+        e membro consultam todas as tarefas do projeto, sem exigir atribuição como responsável.'
+    post:
+      tags:
+      - Tarefas
+      operationId: createTask
+      summary: Criar tarefa com zero ou mais responsáveis
+      description: 'D3/D5/D6/D8: gestor e membro do projeto podem criar tarefas; estado inicial sempre TODO e prioridade
+        inicial sempre MEDIUM. Responsáveis opcionais, únicos e participantes diretos; sem requisito de equipa.
+        Só gestor gere responsáveis, incluindo atribuições iniciais. Membro cria sem responsáveis e não obtém autorização
+        de edição por ser criador. membro pode omitir responsibleUserIds ou enviar []; array não vazio, incluindo o próprio,
+        devolve 403 em projeto acessível atomicamente, sem criar tarefa nem atribuições. Gestor pode
+        definir apenas responsáveis elegíveis, validando o conjunto integral antes de criar.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTask'
+            example:
+              title: Criar protótipo
+              description: Ecrã principal
+              responsibleUserIds:
+              - 9
+              - 10
+      responses:
+        '201':
+          description: Recurso criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+          headers:
+            Location:
+              description: URI do recurso criado
+              schema:
+                type: string
+              example: /api/v1/tasks/35
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+      security:
+      - sessionCookie: []
+        csrfToken: []
+  /tasks/{taskId}:
+    parameters:
+    - $ref: '#/components/parameters/TaskId'
+    get:
+      tags:
+      - Tarefas
+      summary: Consultar uma tarefa
+      operationId: getTask
+      responses:
+        '200':
+          description: Tarefa encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+      description: 'D3: gestor e membro do projeto consultam qualquer tarefa desse projeto, sem exigir atribuição
+        como responsável. Recurso inexistente ou inacessível devolve 404, sem revelar existência.'
+    patch:
+      tags:
+      - Tarefas
+      operationId: updateTask
+      summary: Editar título e descrição da tarefa
+      description: 'D3: gestor edita qualquer tarefa do seu projeto, sem exigir ser responsável; membro só edita
+        tarefa atribuída a si. Criar a tarefa não confere permissão de edição. Editar apenas título/descrição; estado,
+        prioridade e responsáveis usam operações próprias. Edição de textos não gera histórico D10. Operação proibida
+        sobre tarefa acessível devolve 403; inexistente ou inacessível devolve 404.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTask'
+            example:
+              title: Rever protótipo
+      responses:
+        '200':
+          description: Tarefa atualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+      security:
+      - sessionCookie: []
+        csrfToken: []
+    delete:
+      tags:
+      - Tarefas
+      operationId: deleteTask
+      summary: Eliminar definitivamente tarefa
+      description: 'D7: eliminar tarefa, atribuições, comentários e histórico numa única transação; preservar projeto
+        e utilizadores. Rollback integral em falha. D3: apenas gestor do projeto; membro participante recebe 403;
+        recurso inexistente ou inacessível devolve 404, sem revelar existência. Gestor não precisa de ser responsável
+        pela tarefa.'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+      responses:
+        '204':
+          description: Operação concluída sem corpo
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      security:
+      - sessionCookie: []
+        csrfToken: []
+  /tasks/{taskId}/comments:
+    parameters:
+    - $ref: '#/components/parameters/TaskId'
+    get:
+      tags:
+      - Comentários
+      summary: Listar comentários de uma tarefa
+      operationId: listTaskComments
+      responses:
+        '200':
+          description: Lista completa de comentários
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+      description: 'D3: gestor e membro do projeto consultam comentários de qualquer tarefa desse projeto, sem exigir
+        atribuição como responsável. Recurso inexistente ou inacessível devolve 404.
+        Sem paginação no MVP; ordenação por createdAt UTC ASC, id ASC.'
+    post:
+      tags:
+      - Comentários
+      summary: Adicionar um comentário a uma tarefa
+      description: 'D3: gestor e membro do projeto comentam qualquer tarefa desse projeto, sem exigir atribuição
+        como responsável. Autor e instante inferidos no servidor a partir da sessão e relógio. Conteúdo após trim
+        entre 1 e 2000.'
+      operationId: createTaskComment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateComment'
+            example:
+              content: Protótipo pronto para revisão
+      responses:
+        '201':
+          description: Comentário criado
+          headers:
+            Location:
+              description: Caminho lógico do comentário criado
+              schema:
+                type: string
+              example: /api/v1/tasks/35/comments/88
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+      security:
+      - sessionCookie: []
+        csrfToken: []
+  /tasks/{taskId}/status:
+    parameters:
+    - $ref: '#/components/parameters/TaskId'
+    patch:
+      tags:
+      - Tarefas
+      operationId: changeTaskStatus
+      summary: Alterar estado da tarefa
+      description: 'D3: gestor altera estado de qualquer tarefa do seu projeto, sem exigir ser responsável; membro
+        só das tarefas atribuídas a si. 403 para operação proibida sobre tarefa acessível; 404 para inexistente
+        ou inacessível. D10: alteração efetiva regista autor, instante UTC e valores anterior/novo; no-op não gera
+        histórico. Transições específicas pendentes; não inventar restrições adicionais.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaskStatus'
+            example:
+              status: IN_PROGRESS
+      responses:
+        '200':
+          description: Estado atualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+      security:
+      - sessionCookie: []
+        csrfToken: []
+  /tasks/{taskId}/history:
+    parameters:
+    - $ref: '#/components/parameters/TaskId'
+    get:
+      tags:
+      - Histórico
+      operationId: listTaskHistory
+      summary: Consultar histórico de alterações da tarefa
+      description: 'D3/D10: consulta do projeto permitida a gestor e membro, sem exigir atribuição como responsável.
+        Consultar apenas alterações efetivas de estado, prioridade e responsáveis. Autor, UTC, anterior/novo obrigatórios;
+        apagar com tarefa/projeto. Sem paginação no MVP; ordenação por changedAt UTC ASC, id ASC.'
+      responses:
+        '200':
+          description: Histórico completo, sem paginação no MVP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskHistoryList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+  /projects/{projectId}/eligible-users:
+    parameters:
+    - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags:
+      - Utilizadores
+      operationId: listEligibleProjectUsers
+      summary: Listar utilizadores elegíveis do projeto
+      description: 'D3/D6: consulta do projeto permitida a gestor e membro, sem exigir atribuição como responsável.
+        Apenas participantes diretos existentes do projeto, sem dependência de equipa: participações preparadas
+        por seed ou associação automática do criador como gestor na criação do projeto. Consultar elegíveis não
+        autoriza gerir responsáveis; essa gestão é exclusiva do gestor. Sem paginação no MVP;
+        ordenação por user.name case-insensitive ASC, user.id ASC.'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+      responses:
+        '200':
+          description: Operação concluída
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EligibleUserList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /tasks/{taskId}/priority:
+    parameters:
+    - $ref: '#/components/parameters/TaskId'
+    patch:
+      tags:
+      - Tarefas
+      operationId: changeTaskPriority
+      summary: Alterar prioridade
+      description: 'D3: prioridade segue a permissão de edição da tarefa: gestor altera qualquer tarefa do seu projeto,
+        sem exigir ser responsável; membro só tarefas atribuídas a si. 403 para operação proibida sobre tarefa acessível;
+        404 para inexistente ou inacessível. D10: registar apenas alteração efetiva com autor, UTC, anterior e novo.
+        Sem evento para no-op.'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+      responses:
+        '200':
+          description: Operação concluída
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      security:
+      - sessionCookie: []
+        csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaskPriority'
+  /tasks/{taskId}/responsibles:
+    parameters:
+    - $ref: '#/components/parameters/TaskId'
+    put:
+      tags:
+      - Tarefas
+      operationId: changeTaskResponsibles
+      summary: Substituir o conjunto de responsáveis
+      description: 'D5/D6: zero ou mais participantes diretos elegíveis, sem duplicação nem requisito de equipa.
+        [] remove todos; remover um identificador da coleção remove essa atribuição. Validar o conjunto integral
+        atomicamente. D10: só diferenças efetivas de conjunto geram histórico, com autor, UTC, anterior e novo.
+        D3: apenas gestor do projeto; membro participante recebe 403; recurso inexistente ou inacessível devolve
+        404, sem revelar existência. Gestor não precisa de ser responsável pela tarefa.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeResponsible'
+            example:
+              responsibleUserIds:
+              - 9
+              - 10
+      responses:
+        '200':
+          description: Conjunto de responsáveis atualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+      security:
+      - sessionCookie: []
+        csrfToken: []
+  /dashboard:
+    get:
+      tags:
+      - Painel
+      operationId: getDashboard
+      summary: Consultar painel global
+      description: 'D9: todos os projetos acessíveis e contagens por estado por projeto e globais. Não expor projetos
+        inacessíveis. Prioridade filtra contagens; estado não as filtra. Sem paginação no MVP; projetos ordenados por id DESC. D3: gestor e membro consultam apenas os projetos em que participam diretamente e os seus agregados.'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+      responses:
+        '200':
+          description: Operação concluída
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      parameters:
+      - *id001
+  /auth/csrf:
+    get:
+      tags:
+      - Autenticação
+      operationId: getCsrfToken
+      summary: Obter token CSRF
+      description: 'Ponto 7 aprovado condicionalmente à consistência com D1–D10 e pontos 1–6; fecho final P1 pendente: obter
+        antes do login um token associado à sessão anónima, criando-a e emitindo cookie de sessão HttpOnly se necessário.
+        O browser conserva esse cookie e envia-o no login juntamente com o token no cabeçalho X-CSRF-TOKEN. Não
+        autentica. Após login, renovar a sessão e obter novo token; obter novo token também após logout. Resposta
+        com Cache-Control no-store. D4 aprovada: sessões Spring Security com inatividade máxima de 30 minutos e
+        duração absoluta máxima de 8 horas; cookie HttpOnly, SameSite=Lax e Secure em HTTPS; CSRF nas operações
+        mutáveis, inclusive login/logout; rotação do identificador de sessão no login e invalidação da sessão no
+        logout.'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+      responses:
+        '200':
+          description: Operação concluída
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CsrfToken'
+          headers:
+            Set-Cookie:
+              description: 'Nome JSESSIONID aprovado no ponto 7, condicionado à consistência com D1–D10 e pontos 1–6; cookie de sessão HttpOnly, SameSite=Lax, Secure em HTTPS.
+                Sessão anónima emitida se necessário; o browser conserva e envia o cookie no login. D4: inatividade
+                máxima 30 minutos e duração absoluta máxima 8 horas.'
+              schema:
+                type: string
+            Cache-Control:
+              description: Não armazenar a resposta com o token CSRF.
+              schema:
+                type: string
+                const: no-store
+      security: []
+  /auth/login:
+    post:
+      tags:
+      - Autenticação
+      operationId: login
+      summary: Iniciar sessão
+      description: 'Ponto 7 aprovado condicionalmente à consistência com D1–D10 e pontos 1–6; fecho final P1 pendente: validar credenciais de contas seed, autenticar
+        com Spring Security e renovar identificador de sessão para evitar fixação. Emitir cookie de sessão HttpOnly;
+        devolver perfil público, nunca credenciais. O browser envia o cookie da sessão anónima conservado desde
+        GET /auth/csrf e o token associado no cabeçalho X-CSRF-TOKEN. Exigir CSRF mesmo antes de autenticar; o cookie
+        anónimo não comprova autenticação. Credenciais inválidas: 401. Após sucesso, conservar o cookie renovado
+        e obter novo CSRF. D4 aprovada: sessões Spring Security com inatividade máxima de 30 minutos e duração absoluta
+        máxima de 8 horas; cookie HttpOnly, SameSite=Lax e Secure em HTTPS; CSRF nas operações mutáveis, inclusive
+        login/logout; rotação do identificador de sessão no login e invalidação da sessão no logout.'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+      responses:
+        '200':
+          description: Operação concluída
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          headers:
+            Set-Cookie:
+              description: 'Nome JSESSIONID aprovado no ponto 7, condicionado à consistência com D1–D10 e pontos 1–6; cookie de sessão HttpOnly, SameSite=Lax, Secure em HTTPS.
+                Identificador de sessão rodado no login. D4: inatividade máxima 30 minutos e duração absoluta máxima
+                8 horas.'
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          description: Limite de tentativas de login atingido; autenticação não executada
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      security:
+      - csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Login'
+  /auth/logout:
+    post:
+      tags:
+      - Autenticação
+      operationId: logout
+      summary: Terminar sessão
+      description: 'D4 aprovada: exigir sessão autenticada e CSRF válido; invalidar sessão no servidor e expirar
+        cookie no logout. Pedidos protegidos posteriores sem autenticação devolvem 401, incluindo logout sem sessão
+        válida. Rota e DTO documentados no ponto 7 aprovado condicionalmente à consistência com D1–D10 e pontos 1–6; fecho final P1 pendente.'
+      x-estado: Contrato documentado com decisões aprovadas; fecho final P1 pendente; ponto 7 condicional
+      responses:
+        '204':
+          description: Operação concluída sem corpo
+          headers:
+            Set-Cookie:
+              description: Expirar cookie da sessão invalidada.
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      security:
+      - sessionCookie: []
+        csrfToken: []
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: JSESSIONID
+      description: 'Nome JSESSIONID e bootstrap GET /auth/csrf aprovados no ponto 7, condicionados à consistência com D1–D10 e pontos 1–6; fecho final P1 pendente. D4 aprovada: sessões
+        Spring Security com inatividade máxima de 30 minutos e duração absoluta máxima de 8 horas; cookie HttpOnly,
+        SameSite=Lax e Secure em HTTPS; CSRF nas operações mutáveis, inclusive login/logout; rotação do identificador
+        de sessão no login e invalidação da sessão no logout. O browser conserva e envia o cookie; JavaScript não
+        deve lê-lo. Sessão anónima não comprova autenticação.'
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-TOKEN
+      description: 'Nome X-CSRF-TOKEN e obtenção em GET /auth/csrf aprovados no ponto 7, condicionados à consistência com D1–D10 e pontos 1–6; fecho final P1 pendente. D4 aprovada:
+        CSRF obrigatório nas operações mutáveis, incluindo login e logout. O token CSRF não substitui a sessão nem
+        autentica o utilizador.'
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      description: Identificador do projeto
+      schema:
+        type: integer
+        minimum: 1
+      example: 12
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      description: Identificador da tarefa
+      schema:
+        type: integer
+        minimum: 1
+      example: 35
+    UserId:
+      name: userId
+      in: path
+      required: true
+      description: Identificador do utilizador
+      schema:
+        type: integer
+        minimum: 1
+      example: 9
+  responses:
+    BadRequest:
+      description: Pedido malformado ou parâmetros inválidos
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: about:blank
+            title: Bad Request
+            status: 400
+            detail: O identificador deve ser um inteiro positivo.
+    Unauthorized:
+      description: '401: sem autenticação; sessão ausente, inválida, expirada por inatividade (máximo 30 minutos)
+        ou limite absoluto (máximo 8 horas), ou invalidada no logout. No login, credenciais inválidas.'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: about:blank
+            title: Unauthorized
+            status: 401
+            detail: é necessário iniciar uma sessão válida.
+    Forbidden:
+      description: '403: utilizador autenticado sem permissão para a operação sobre recurso acessível, conforme
+        D3, ou CSRF ausente/inválido numa operação mutável, incluindo login/logout (D4). Não usar falta de participação
+        para revelar existência: recurso inexistente ou inacessível devolve 404. Sem autenticação nas operações
+        protegidas devolve 401; o bootstrap/login não exige autenticação prévia, mas login exige CSRF.'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: about:blank
+            title: Forbidden
+            status: 403
+            detail: Não tem permissão para executar esta operação.
+    NotFound:
+      description: '404: recurso inexistente OU inacessível ao utilizador; não revelar a existência de projetos,
+        tarefas ou dependentes a não participantes. Mesma resposta pública em ambos os casos. Para recurso acessível
+        com operação proibida, usar 403; sem autenticação, 401.'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: about:blank
+            title: Not Found
+            status: 404
+            detail: O recurso solicitado não foi encontrado.
+    UnprocessableEntity:
+      description: Dados bem formados, mas inválidos segundo as regras de validação
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+          example:
+            type: about:blank
+            title: Unprocessable Content
+            status: 422
+            detail: Existem erros de validação.
+            errors:
+            - field: name
+              message: O nome deve ter pelo menos 3 caracteres.
+  schemas:
+    User:
+      type: object
+      description: Representação pública de um utilizador
+      additionalProperties: false
+      required:
+      - id
+      - name
+      - email
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          readOnly: true
+          example: 7
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+          example: Ana Silva
+        email:
+          type: string
+          format: email
+          example: ana.silva@example.org
+    Project:
+      type: object
+      additionalProperties: false
+      required:
+      - description
+      - id
+      - name
+      - createdByUserId
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          readOnly: true
+        name:
+          type: string
+          minLength: 3
+          maxLength: 100
+          pattern: \S
+          description: Valor após trim; rejeitar vazio e apenas espaços quando fornecido.
+        description:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 1000
+          pattern: \S
+          description: Sempre presente na resposta; null quando ausente, ou texto não vazio após trim.
+        createdByUserId:
+          type: [integer, 'null']
+          minimum: 1
+          readOnly: true
+          description: Propriedade sempre presente; null apenas para projetos legados cujo criador é desconhecido,
+            sem inferir autoria a partir dos membros atuais. Em novos projetos criados pela API, o ID é não nulo,
+            inferido da sessão autenticada e associado automaticamente como gestor na mesma transação da criação.
+            Projeto inicialmente privado, sem outros membros; identidade não pode ser imposta pelo corpo.
+    Task:
+      type: object
+      additionalProperties: false
+      required:
+      - description
+      - id
+      - projectId
+      - responsibleUserIds
+      - title
+      - status
+      - priority
+      - createdAt
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          readOnly: true
+        projectId:
+          type: integer
+          minimum: 1
+          readOnly: true
+        title:
+          type: string
+          minLength: 3
+          maxLength: 150
+          pattern: \S
+          description: Valor após trim; rejeitar vazio e apenas espaços quando fornecido.
+        description:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 2000
+          pattern: \S
+          description: Sempre presente na resposta; null quando ausente, ou texto não vazio após trim.
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        createdAt:
+          type: string
+          format: date-time
+          pattern: Z$
+          readOnly: true
+          description: Instante UTC de criação gerado pelo servidor, com sufixo Z.
+        responsibleUserIds:
+          $ref: '#/components/schemas/ResponsibleUserIds'
+        priority:
+          $ref: '#/components/schemas/TaskPriority'
+    Comment:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - taskId
+      - authorId
+      - content
+      - createdAt
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          readOnly: true
+        taskId:
+          type: integer
+          minimum: 1
+          readOnly: true
+          description: FK lógica para Task.id
+        authorId:
+          type: integer
+          minimum: 1
+          readOnly: true
+          description: FK lógica para User.id
+        content:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          pattern: \S
+          description: Valor após trim; rejeitar vazio e apenas espaços quando fornecido.
+        createdAt:
+          type: string
+          format: date-time
+          pattern: Z$
+          readOnly: true
+          description: Instante UTC de criação gerado pelo servidor, com sufixo Z.
+    TaskStatus:
+      type: string
+      enum:
+      - TODO
+      - IN_PROGRESS
+      - DONE
+      default: TODO
+    CreateProject:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 100
+          pattern: \S
+          description: Valor após trim; rejeitar vazio e apenas espaços quando fornecido.
+        description:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 1000
+          pattern: \S
+          description: Omitida ou null significa ausência; texto após trim, rejeitando vazio ou apenas espaços.
+      required:
+      - name
+      description: 'D3: criação do projeto e participação inicial do criador autenticado como gestor na mesma transação;
+        projeto inicialmente privado, sem outros membros.'
+    CreateTask:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 150
+          pattern: \S
+          description: Valor após trim; rejeitar vazio e apenas espaços quando fornecido.
+        description:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 2000
+          pattern: \S
+          description: Omitida ou null significa ausência; texto após trim, rejeitando vazio ou apenas espaços.
+        responsibleUserIds:
+          $ref: '#/components/schemas/ResponsibleUserIds'
+          default: []
+          description: 'Membro pode omitir ou enviar []; array não vazio devolve 403 em projeto acessível,
+            atomicamente, sem criar tarefa ou atribuições. Gestor pode definir participantes diretos elegíveis;
+            validar todo o conjunto antes de criar. Autorização no servidor, não pelo JSON Schema.'
+      required:
+      - title
+      description: 'D8: criação sempre em TODO/MEDIUM; estado e prioridade não são aceites neste DTO. Sem responsáveis
+        se omitidos; alterações posteriores de estado e prioridade usam as operações próprias. D3: gestor e membro
+        criam; apenas gestor pode definir atribuições iniciais. Membro cria sem responsáveis; autoria não concede
+        edição. Campo responsibleUserIds de membro não pode atribuir ninguém, incluindo a si próprio: tentativa
+        de atribuição devolve 403 em projeto acessível e não cria tarefa parcialmente. Omissão e [] explícito
+        por membro são permitidos; array não vazio devolve 403 atomicamente, sem tarefa nem atribuições.'
+    UpdateTask:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 150
+          pattern: \S
+          description: Valor após trim; rejeitar vazio e apenas espaços quando fornecido.
+        description:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 2000
+          pattern: \S
+          description: Omissão mantém; null remove; texto após trim, rejeitando vazio ou apenas espaços.
+      minProperties: 1
+      description: PATCH parcial; omissão mantém descrição, null remove; texto vazio após trim é rejeitado.
+    CreateComment:
+      type: object
+      additionalProperties: false
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          pattern: \S
+          description: Valor após trim; rejeitar vazio e apenas espaços quando fornecido.
+      required:
+      - content
+    ProjectList:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+        totalItems:
+          type: integer
+          minimum: 0
+      required:
+      - items
+      - totalItems
+      description: 'Sem paginação no MVP: items contém o conjunto completo autorizado e filtrado; totalItems
+        corresponde a esse conjunto. Ordenação por id DESC.'
+    TaskList:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+        totalItems:
+          type: integer
+          minimum: 0
+        counts:
+          $ref: '#/components/schemas/TaskCounts'
+      required:
+      - items
+      - totalItems
+      - counts
+      description: Lista completa de tarefas autorizadas; totalItems aplica simultaneamente status e priority. counts
+        aplica apenas priority, ignora status e não se limita a uma página. Sem paginação no MVP; ordenação por createdAt DESC, id DESC.
+    CommentList:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Comment'
+        totalItems:
+          type: integer
+          minimum: 0
+      required:
+      - items
+      - totalItems
+      description: 'Sem paginação no MVP: items contém o conjunto completo autorizado e filtrado; totalItems
+        corresponde a esse conjunto. Ordenação por createdAt UTC ASC, id ASC.'
+    Problem:
+      type: object
+      description: Formato de erro inspirado no RFC 9457 (Problem Details)
+      required:
+      - type
+      - title
+      - status
+      - detail
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+    ValidationError:
+      allOf:
+      - $ref: '#/components/schemas/Problem'
+      - type: object
+        required:
+        - errors
+        properties:
+          errors:
+            type: array
+            minItems: 1
+            items:
+              type: object
+              additionalProperties: false
+              required:
+              - field
+              - message
+              properties:
+                field:
+                  type: string
+                  example: name
+                message:
+                  type: string
+                  example: O nome deve ter pelo menos 3 caracteres.
+    UpdateTaskStatus:
+      type: object
+      additionalProperties: false
+      required:
+      - status
+      properties:
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+    ChangeResponsible:
+      type: object
+      additionalProperties: false
+      properties:
+        responsibleUserIds:
+          $ref: '#/components/schemas/ResponsibleUserIds'
+      required:
+      - responsibleUserIds
+      description: Substituição do conjunto completo; [] remove todas as atribuições. Duplicados rejeitados. Validar
+        existência e participação direta de todos antes de alterar; sem alteração parcial.
+    TaskHistoryEntry:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        taskId:
+          type: integer
+          minimum: 1
+        changedByUserId:
+          type: integer
+          minimum: 1
+          description: Autor inferido da sessão.
+        changedAt:
+          type: string
+          format: date-time
+          pattern: Z$
+          description: Instante UTC gerado pelo servidor, com sufixo Z.
+        field:
+          type: string
+          enum:
+          - status
+          - priority
+          - responsibleUserIds
+        previousValue: {}
+        newValue: {}
+      required:
+      - id
+      - taskId
+      - changedByUserId
+      - changedAt
+      - field
+      - previousValue
+      - newValue
+      description: Apenas alterações efetivas D10; anterior diferente do novo (conjuntos comparados sem ordem).
+        Operação sem efeito não cria entrada. Eliminação transacional com tarefa/projeto.
+      oneOf:
+      - properties:
+          field:
+            const: status
+          previousValue:
+            $ref: '#/components/schemas/TaskStatus'
+          newValue:
+            $ref: '#/components/schemas/TaskStatus'
+      - properties:
+          field:
+            const: priority
+          previousValue:
+            $ref: '#/components/schemas/TaskPriority'
+          newValue:
+            $ref: '#/components/schemas/TaskPriority'
+      - properties:
+          field:
+            const: responsibleUserIds
+          previousValue:
+            $ref: '#/components/schemas/ResponsibleUserIds'
+          newValue:
+            $ref: '#/components/schemas/ResponsibleUserIds'
+    TaskHistoryList:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskHistoryEntry'
+        totalItems:
+          type: integer
+          minimum: 0
+      required:
+      - items
+      - totalItems
+      description: 'Sem paginação no MVP: items contém o conjunto completo autorizado e filtrado; totalItems
+        corresponde a esse conjunto. Ordenação por changedAt UTC ASC, id ASC.'
+    UpdateProject:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 100
+          pattern: \S
+          description: Valor após trim; rejeitar vazio e apenas espaços quando fornecido.
+        description:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 1000
+          pattern: \S
+          description: Omissão mantém; null remove; texto após trim, rejeitando vazio ou apenas espaços.
+      minProperties: 1
+      description: PATCH parcial; campos omitidos não mudam; description null remove; texto vazio após trim é rejeitado.
+    TaskPriority:
+      type: string
+      enum:
+      - LOW
+      - MEDIUM
+      - HIGH
+      default: MEDIUM
+    ResponsibleUserIds:
+      type: array
+      minItems: 0
+      uniqueItems: true
+      items:
+        type: integer
+        minimum: 1
+      description: Conjunto de zero ou mais utilizadores existentes com participação direta no projeto. Sem exigência
+        de equipa. A ordem do array não altera o conjunto nem gera histórico.
+    UpdateTaskPriority:
+      type: object
+      additionalProperties: false
+      properties:
+        priority:
+          $ref: '#/components/schemas/TaskPriority'
+      required:
+      - priority
+    ProjectRole:
+      type: string
+      enum:
+      - GESTOR
+      - MEMBRO
+      description: Representação dos papéis por projeto GESTOR/MEMBRO; permissões D3 aprovadas descritas
+        nas operações e em x-matriz-acesso-aprovada, não papéis globais.
+    EligibleUser:
+      type: object
+      additionalProperties: false
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        projectRole:
+          $ref: '#/components/schemas/ProjectRole'
+      required:
+      - user
+      - projectRole
+      description: Utilizador com participação direta no projeto, preparada por seed ou criada automaticamente para
+        o criador como gestor na criação do projeto; elegibilidade não confere permissão para atribuir.
+    EligibleUserList:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/EligibleUser'
+        totalItems:
+          type: integer
+          minimum: 0
+      required:
+      - items
+      - totalItems
+      description: 'Sem paginação no MVP: items contém o conjunto completo autorizado e filtrado; totalItems
+        corresponde a esse conjunto. Ordenação por user.name case-insensitive ASC, user.id ASC.'
+    TaskCounts:
+      type: object
+      additionalProperties: false
+      properties:
+        TODO:
+          type: integer
+          minimum: 0
+        IN_PROGRESS:
+          type: integer
+          minimum: 0
+        DONE:
+          type: integer
+          minimum: 0
+        total:
+          type: integer
+          minimum: 0
+      required:
+      - TODO
+      - IN_PROGRESS
+      - DONE
+      - total
+      description: Contagens por estado sobre todas as tarefas do projeto autorizado; aplicar prioridade, ignorar
+        estado. total é a soma dos três estados, não o total filtrado da listagem.
+    DashboardProject:
+      type: object
+      additionalProperties: false
+      properties:
+        project:
+          $ref: '#/components/schemas/Project'
+        counts:
+          $ref: '#/components/schemas/TaskCounts'
+      required:
+      - project
+      - counts
+    Dashboard:
+      type: object
+      additionalProperties: false
+      properties:
+        projects:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashboardProject'
+        totalProjects:
+          type: integer
+          minimum: 0
+        counts:
+          $ref: '#/components/schemas/TaskCounts'
+      required:
+      - projects
+      - totalProjects
+      - counts
+      description: 'Painel global: todos os projetos acessíveis, contagens por projeto e soma global apenas desses
+        projetos. Filtro de prioridade afeta contagens, nunca aplica filtro de estado. Sem paginação; projetos sem
+        tarefas mantém contagens zero. Projetos ordenados por id DESC; sem paginação no MVP.'
+    Login:
+      type: object
+      additionalProperties: false
+      properties:
+        username:
+          type: string
+          minLength: 1
+          description: Identificador da conta de demonstração preparada por seed; detalhes das contas seed futuros.
+        password:
+          type: string
+          minLength: 1
+          writeOnly: true
+          description: Credencial, não texto de domínio D8; não aplicar trim nem devolver na resposta.
+      required:
+      - username
+      - password
+    CsrfToken:
+      type: object
+      additionalProperties: false
+      properties:
+        token:
+          type: string
+          minLength: 1
+        headerName:
+          type: string
+          const: X-CSRF-TOKEN
+      required:
+      - token
+      - headerName
+      description: 'Ponto 7 aprovado condicionalmente à consistência com D1–D10 e pontos 1–6; fecho final P1 pendente: token CSRF associado à sessão, anónima
+        antes do login, separado do cookie HttpOnly conservado pelo browser. Enviar o token em X-CSRF-TOKEN e o
+        cookie no login; renovar sessão e obter novo token após sucesso. Não é credencial de autenticação.'
+x-decisoes-aprovadas:
+  D1: 'MVP completo Ficha 03: autenticação, CRUD projetos/tarefas, vários responsáveis, comentários, pesquisa, filtros
+    e painel; histórico conforme D10. Registo público e recuperação de palavra-passe não integram este contrato.'
+  D2: Java com Spring Boot, React e PostgreSQL; monólito modular.
+  D3: Matriz gestor/membro por projeto aprovada em x-matriz-acesso-aprovada. Gestor edita/elimina projeto, cria/edita/altera
+    estado e prioridade de qualquer tarefa do projeto, elimina tarefas e gere responsáveis. Membro cria tarefas;
+    só edita/altera estado e prioridade de tarefas atribuídas a si. Ambos consultam e comentam, incluindo consulta
+    de elegíveis e histórico. Gestor não precisa de ser responsável. 401 sem autenticação; 403 para operação proibida
+    sobre recurso acessível; 404 para inexistente ou inacessível, sem revelar existência a não participante. Criação
+    associa automaticamente criador como gestor na mesma transação; projeto inicialmente privado, sem outros membros.
+    A gestão exclusiva de responsáveis pelo gestor aplica-se também a CreateTask; membro não pode autoatribuir-se.
+  D4: 'D4 aprovada: sessões Spring Security com inatividade máxima de 30 minutos e duração absoluta máxima de 8
+    horas; cookie HttpOnly, SameSite=Lax e Secure em HTTPS; CSRF nas operações mutáveis, inclusive login/logout;
+    rotação do identificador de sessão no login e invalidação da sessão no logout.'
+  D5: Cada tarefa admite zero ou mais responsáveis elegíveis, sem duplicação.
+  D6: Participação direta no projeto, preparada por seed. Elegibilidade exige pertença direta ao projeto, não pertença
+    a equipa.
+  D7: Eliminação definitiva e transacional de projeto/tarefa e dependentes, sem órfãos; falha implica rollback integral.
+  D8: Trim e rejeição de texto vazio quando fornecido; nome projeto 3–100, descrição opcional até 1000; título tarefa
+    3–150, descrição opcional até 2000; comentário 1–2000. Estados TODO/IN_PROGRESS/DONE, prioridades LOW/MEDIUM/HIGH;
+    valores iniciais TODO/MEDIUM.
+  D9: Painel global sobre projetos acessíveis. Contagens por estado de cada projeto respeitam prioridade e ignoram
+    filtro de estado; total da listagem de tarefas respeita ambos. Pesquisa de projetos pelo nome sem distinção
+    de maiúsculas/minúsculas; ordenação estável; contagens sobre todo o conjunto relevante, sem paginação.
+  D10: Histórico apenas de alterações efetivas de estado, prioridade e conjunto de responsáveis; autor autenticado,
+    instante UTC, valor anterior e novo. Sem evento para no-op, criação, textos ou comentários. Apagar com tarefa/projeto.
+x-pendencias:
+- Detalhes do seed, atribuição de papéis aos restantes participantes e gestão posterior de participações não definidos.
+  A associação automática do criador como gestor e a privacidade inicial já estão aprovadas; não inferir novas permissões
+  de gestão de participantes.
+- Transições de estado e eventuais restrições adicionais não definidas; o enum não aprova uma matriz de transições.
+- Limites operacionais e concorrência não definidos.
+- Verificar suporte e compatibilidade de Java 21 LTS, Spring Boot 3.5.x, React 19.x e PostgreSQL 17.x antes da implementação;
+  fixar versões exatas numa fase futura autorizada. Verificação não efetuada nesta P1; suporte não confirmado.
+- Fecho final humano P1 pendente, incluindo revisão de consistência do ponto 7 com D1–D10 e pontos 1–6.
+  Rotas e DTOs documentados não são falta de decisão; este fecho não autoriza P2, código, instalações ou migrations.
+x-matriz-acesso-aprovada:
+  estado: D3 aprovada e preservada; contrato documentado, fecho final humano P1 pendente.
+  ambito: Papéis por participação direta no projeto; autorização no servidor também para acesso direto por identificador.
+    Gestor não precisa de ser responsável por tarefa.
+  consulta-projeto-tarefas-comentarios-elegiveis-historico-painel:
+    gestor: Permitido no seu projeto.
+    membro: Permitido no seu projeto, sem exigir atribuição como responsável.
+    nao-participante: Sem acesso; 404 para recurso identificado. Listagens e painel omitem projetos inacessíveis.
+  editar-eliminar-projeto:
+    gestor: Permitido no seu projeto.
+    membro: Proibido (403 em recurso acessível).
+  criar-tarefa:
+    gestor: Permitido no seu projeto; pode definir responsáveis elegíveis.
+    membro: Permitido no seu projeto com responsibleUserIds omitido ou []; array não vazio devolve 403
+      atomicamente, sem tarefa nem atribuições, incluindo autoatribuição. Autoria não confere edição.
+  editar-tarefa-estado-prioridade:
+    gestor: Permitido para qualquer tarefa do seu projeto, mesmo sem ser responsável.
+    membro: Permitido apenas se a tarefa lhe estiver atribuída; caso contrário, 403 em recurso acessível. Prioridade
+      segue edição da tarefa.
+  eliminar-tarefa-gerir-responsaveis:
+    gestor: Permitido para qualquer tarefa do seu projeto, mesmo sem ser responsável.
+    membro: Proibido (403 em recurso acessível), incluindo atribuições iniciais via CreateTask.
+  comentar:
+    gestor: Permitido nas tarefas do seu projeto.
+    membro: Permitido nas tarefas do seu projeto, sem exigir atribuição.
+  criar-projeto: Criador autenticado associado automaticamente como gestor na mesma transação; projeto inicialmente
+    privado sem outros membros.
+  respostas: 401 sem autenticação; 403 sem permissão sobre recurso acessível; 404 para inexistente ou inacessível,
+    sem revelar existência a não participante.
+x-pontos-aprovados:
+  estado: Decisões aprovadas complementares a D1–D10, integralmente preservadas; P1 apenas documental, fecho final pendente.
+  ponto-1-ordenacao:
+    projetos: id DESC, incluindo projetos no painel.
+    tarefas: createdAt DESC, id DESC; createdAt obrigatório no schema Task, gerado pelo servidor.
+    comentarios: createdAt UTC ASC, id ASC.
+    historico: changedAt UTC ASC, id ASC.
+    elegiveis: user.name case-insensitive ASC, user.id ASC.
+  ponto-2-pesquisa: Substring literal no nome do projeto após trim da pesquisa; case-insensitive e accent-sensitive.
+    Omitida ou vazia após trim não filtra. Percentagem (%) e underscore (_) são literais, não wildcards.
+  ponto-3-descricoes: Na criação, descrição omitida ou null significa ausência; no PATCH, omitida mantém e null remove.
+    Texto é aparado antes de validar comprimentos; vazio ou apenas espaços é rejeitado. Respostas incluem description null
+    quando ausente. Aplicável a projetos e tarefas, preservando os limites D8.
+  ponto-4-create-task: Membro pode omitir responsibleUserIds ou enviar []; array não vazio devolve 403 em projeto acessível
+    atomicamente, sem tarefa ou atribuições, incluindo tentativa de autoatribuição. Gestor pode atribuir apenas elegíveis,
+    validando o conjunto integral. Preservar D3/D5/D6/D8 e TODO/MEDIUM iniciais.
+  ponto-5-listas: Todas as listagens do MVP sem paginação, incluindo painel, comentários, histórico e elegíveis.
+    items contém o conjunto completo autorizado e filtrado; totalItems corresponde a esse conjunto. Preservar contagens D9.
+  ponto-6-stack-topologia:
+    familias: Java 21 LTS; Spring Boot 3.5.x; React 19.x; PostgreSQL 17.x; monólito modular D2.
+    verificacao: Verificar suporte e compatibilidade ANTES da implementação; versões exatas a fixar no futuro.
+      Sem consulta de versões pela rede nesta tarefa; suporte e compatibilidade não confirmados.
+    topologia: Frontend e API na mesma origem; HTTPS em produção; proxy em desenvolvimento.
+      Sem CORS arbitrário com credenciais. Origens específicas de implantação são configuração futura, não decisão MVP pendente.
+  ponto-7-bootstrap-csrf:
+    estado: Aprovado condicionalmente à consistência com D1–D10 e pontos 1–6; fecho final P1 ainda pendente.
+    convencoes: Cookie JSESSIONID e cabeçalho X-CSRF-TOKEN; rotas e DTOs documentados neste contrato não são falta de decisão.
+    fluxo: GET /auth/csrf antes do login associa token à sessão anónima e emite cookie se necessário; não autentica.
+      Browser conserva cookie HttpOnly e envia cookie e token no login; renovar sessão no login e obter novo token depois
+      do login e do logout. Resposta CSRF com Cache-Control no-store. Preservar integralmente D4.

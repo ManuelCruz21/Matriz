@@ -1,0 +1,88 @@
+# Secrets, local environment and credentials (sanitized .env.example excepted)
+.env
+.env.*
+*.env
+*.env.*
+
+# Allow the sanitized environment configuration template
+!.env.example
+
+.envrc
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+credentials*
+secrets*
+.netrc
+.npmrc
+.pypirc
+
+# Local data, databases, exports and backups
+/data/
+/backups/
+/dumps/
+*.db
+*.sqlite*
+*.dump
+*.sql
+*.bak
+
+# Allow only backend Flyway SQL migrations
+!/backend/src/main/resources/db/
+!/backend/src/main/resources/db/migration/
+!/backend/src/main/resources/db/migration/*.sql
+
+# Dependencies, build products and caches
+node_modules/
+target/
+dist/
+build/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage/
+.coverage
+
+# Logs, temporary files and editor/OS state
+*.log
+*.tmp
+*.temp
+*.swp
+*~
+/tmp/
+/temp/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Tool state: allow only the two reviewed project orchestrator skills
+/.openharness/*
+!/.openharness/skills/
+/.openharness/skills/*
+!/.openharness/skills/matriz-orchestrator/
+/.openharness/skills/matriz-orchestrator/*
+!/.openharness/skills/matriz-orchestrator/SKILL.md
+/.agents/*
+!/.agents/skills/
+/.agents/skills/*
+!/.agents/skills/matriz-orchestrator/
+/.agents/skills/matriz-orchestrator/*
+!/.agents/skills/matriz-orchestrator/SKILL.md
+
+# Local-only teaching materials: exclude Markdown, originals and examples
+/docs/aulas/**
+
+# Unchanged prototype assets
+/docs/ui/*
+!/docs/ui/README.md

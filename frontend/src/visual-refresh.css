@@ -1,0 +1,84 @@
+/* Matriz v1.3 — restrained Linear/GitHub-inspired UI.
+   Visual-only replacement for the previous visual-refresh.css.
+   Keep style.css, main.jsx, theme.js and tests unchanged. */
+:root {
+  --bg:#f8f9fb; --surface:#ffffff; --surface-soft:#f6f8fa;
+  --text:#24292f; --muted:#57606a; --border:#d8dee4;
+  --accent:#3858a6; --accent-hover:#274783; --accent-soft:#eaf0fb;
+  --focus:#3858a6; --shadow:0 1px 2px #1f23280a; --radius:9px;
+  --success:#11683a; --success-soft:#eaf7ee;
+  --danger:#b42332; --danger-soft:#fff0f1;
+}
+:root[data-theme="dark"] {
+  --bg:#0d1117; --surface:#0d1117; --surface-soft:#151b23;
+  --text:#e6edf3; --muted:#919da9; --border:#30363d;
+  --accent:#8ab4f8; --accent-hover:#b4d0ff; --accent-soft:#192b44;
+  --focus:#8ab4f8; --shadow:none; --radius:9px;
+  --success:#7ee2a8; --success-soft:#10291d;
+  --danger:#ff8793; --danger-soft:#331a21;
+}
+body {font-size:14px;line-height:1.55;letter-spacing:0;background:var(--bg)}
+main {max-width:1320px;padding-inline:clamp(16px,3.5vw,48px)}
+header {min-height:68px;gap:16px;border-bottom:1px solid var(--border)}
+header h1 {font-size:22px;line-height:1}
+.brand {font-size:22px!important;letter-spacing:-.045em!important;font-weight:720!important;color:var(--text)!important}
+.brand::before {width:20px!important;height:20px!important;margin-right:9px;border-radius:5px;vertical-align:-2px;background:linear-gradient(135deg,#6d83be,#3d5390);box-shadow:none}
+.account-name {font-size:12px;font-weight:500}
+.theme-selector {font-size:12px;gap:8px;font-weight:500}
+.theme-selector select {min-width:94px;min-height:33px;padding:5px 27px 5px 9px;font-size:12px;background:var(--surface-soft);border:1px solid var(--border)}
+header>button:last-child {min-height:33px!important;padding:6px 12px!important;font-size:12px!important;background:transparent!important;color:var(--muted)!important;border:1px solid var(--border)!important}
+header>button:last-child:hover {color:var(--text)!important;background:var(--surface-soft)!important}
+nav {margin:14px 0 22px;gap:3px;border-bottom:1px solid var(--border);padding-bottom:10px}
+nav a,nav button {font-size:13px!important;font-weight:550;padding:7px 12px;border-radius:6px}
+nav button {background:transparent!important;color:var(--muted)!important}
+nav [aria-current="page"],nav button[aria-current="page"] {background:var(--accent-soft)!important;color:var(--accent)!important}
+#main-content>fieldset>section,#main-content>section {padding:0!important;background:transparent;border:0;border-radius:0;box-shadow:none;margin:0 0 28px;min-height:0}
+section,article,.auth {border-radius:var(--radius);box-shadow:none}
+h2 {font-size:clamp(22px,2vw,27px);font-weight:680;letter-spacing:-.035em;margin-bottom:16px}
+h3 {font-weight:640}
+.dashboard-heading {display:flex;align-items:center;justify-content:space-between;gap:14px;margin:6px 0 20px}
+.dashboard-heading h2 {font-size:26px;margin:3px 0 3px}
+.dashboard-heading p {margin:0;color:var(--muted);font-size:13px}
+.eyebrow {font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--muted)}
+.dashboard-label {display:none}
+.stats-grid {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:18px 0 30px}
+.stat-card {min-height:103px!important;padding:15px 17px!important;margin:0;background:var(--surface);border:1px solid var(--border)!important;border-radius:8px;display:flex;flex-direction:column;gap:4px;box-shadow:none}
+.stat-card:nth-child(n) {border-top:1px solid var(--border)!important}
+.stat-card strong {font-size:27px;font-weight:650;line-height:1.25;letter-spacing:-.045em;color:var(--text)}
+.stat-label {font-size:12px;font-weight:550;color:var(--muted)}
+.stat-foot {font-size:11px;color:var(--muted)}
+.section-heading {display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 12px}
+.section-heading h3 {font-size:16px;margin:0;font-weight:650}
+.section-heading span {font-size:12px;color:var(--muted)}
+/* Project/task cards become compact rows, not giant nested tiles. */
+.cards {display:flex;flex-direction:column;gap:0;margin:12px 0 22px;border:1px solid var(--border);border-radius:9px;overflow:hidden;background:var(--surface)}
+.cards article {position:relative;display:flex;flex-direction:column;align-items:stretch;gap:5px;min-height:0;padding:14px 18px;margin:0;border:0;border-bottom:1px solid var(--border);border-radius:0;background:transparent;box-shadow:none;transition:background-color .12s}
+.cards article:last-child {border-bottom:0}
+.cards article:hover {transform:none;background:var(--surface-soft);border-color:var(--border);box-shadow:none}
+.cards article h3 {font-size:14px;line-height:1.4;font-weight:620;margin:0;color:var(--text)}
+.cards article p {font-size:12px;margin:0;color:var(--muted)}
+.cards article>a:last-child,.cards article>p>a {align-self:flex-start;margin:2px 0 0;padding:0;font-size:12px;font-weight:600;color:var(--accent);text-decoration:none}
+.cards article>a:last-child:hover,.cards article>p>a:hover {text-decoration:underline}
+form.inline {margin:14px 0 18px;padding:13px 15px;border:1px solid var(--border);background:var(--surface);border-radius:8px;align-items:flex-end}
+form.inline label {font-size:12px}
+input,textarea,select {border-radius:6px;min-height:37px;background:var(--surface);font-size:13px}
+input:focus,textarea:focus,select:focus {border-color:var(--focus)}
+button:not(.brand) {min-height:36px;padding:7px 13px;border-radius:6px;font-size:13px;font-weight:600}
+button:not(.brand):not(.danger) {background:#3858a6;color:#fff}
+button:not(.brand):not(.danger):hover:not(:disabled) {background:#274783}
+nav button:not(.brand),header>button:last-child {background:transparent!important;color:var(--muted)!important}
+nav button[aria-current="page"] {background:var(--accent-soft)!important;color:var(--accent)!important}
+.danger {background:var(--danger-soft);color:var(--danger);border-color:var(--danger)}
+/* Do not paint generic loading messages green. */
+#main-content>p[role="status"] {background:transparent;color:var(--muted);padding:0}
+#main-content>p.notice-success[role="status"],.notice-success {background:var(--success-soft)!important;color:var(--success)!important;border:1px solid var(--success);border-radius:7px;padding:11px 14px!important;font-weight:600}
+.notice-success::before {content:'✓';margin-right:9px}
+#main-content>p.notice-warning[role="status"],.notice-warning {background:var(--surface-soft)!important;color:var(--text)!important;border:1px solid #b38a3f;border-left:3px solid #b38a3f;border-radius:7px;padding:11px 14px!important}
+.error {border-radius:7px;padding:11px 14px;font-weight:550}
+fieldset {border-radius:8px}
+details,aside {border-radius:8px}
+.auth {background:var(--surface);border:1px solid var(--border);padding:30px;box-shadow:var(--shadow)}
+@media(max-width:850px) {.stats-grid {grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px) {header {gap:10px;padding:12px 0}.account-name {order:4;width:100%}.theme-selector {font-size:12px}.theme-selector select {min-width:82px}.dashboard-heading h2 {font-size:23px}.stats-grid {gap:8px}.stat-card {padding:12px!important}.cards article {padding:13px 14px}.section-heading span {display:none}}
+@media(max-width:360px) {.stats-grid {grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce) {.cards article {transition:none}}
